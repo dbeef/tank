@@ -1,1 +1,0 @@
-../../server/build/src/protos/ServicesServiceClientPb.ts

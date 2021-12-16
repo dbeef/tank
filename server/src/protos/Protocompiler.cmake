@@ -49,7 +49,7 @@ macro(compile_protos PROTO_FILES)
             -I ${PROTO_FILES_PATH}
             --plugin=protoc-gen-grpc=${GRPC_WEB_PLUGIN}
             --js_out=import_style=commonjs:${PROTOCOMPILER_OUTPUT_DIR}
-            --grpc-web_out=import_style=typescript,mode=grpcwebtext:${PROTOCOMPILER_OUTPUT_DIR}
+            --grpc-web_out=import_style=commonjs,mode=grpcwebtext:${PROTOCOMPILER_OUTPUT_DIR}
             ${proto_file}
         )
 

@@ -5,8 +5,8 @@ import { Joystick } from "pixi-virtual-joystick";
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 
-const {CommandInput,CommandOutput} = require('./Services_pb.d.ts');
-const {MasterServiceClient} = require('./ServicesServiceClientPb.ts');
+const {CommandInput,CommandOutput} = require('./Services_pb.js');
+const {MasterServiceClient} = require('./Services_grpc_web_pb.js');
 
 function degreesToRadians(degrees) {
       var pi = Math.PI;
