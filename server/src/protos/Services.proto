@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+message CommandInput
+{
+    // Negative value reverses direction
+    double left_track_intensity_percent = 1;
+    double right_track_intensity_percent = 2;
+}
+
+message CommandOutput
+{
+}
+
+service MasterService {
+    rpc execute_command (CommandInput) returns (CommandOutput) {}
+} 
