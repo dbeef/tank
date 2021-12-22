@@ -1,67 +1,86 @@
 declare var require: any; // parcel/typescript workaround.
 
-import * as PIXI from "pixi.js";
-import { Joystick } from "pixi-virtual-joystick";
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 
-const {CommandInput,CommandOutput} = require('./Services_pb.js');
+const {TracksInput,TracksOutput,TurretInput,TurretOutput} = require('./Services_pb.js');
 const {MasterServiceClient} = require('./Services_grpc_web_pb.js');
-
-function degreesToRadians(degrees) {
-      var pi = Math.PI;
-      return degrees * (pi/180);
-}
 
 function clamp(number, min, max) {
     return Math.max(min, Math.min(number, max));
 }
 
-function make_request(angle, power) {
-    var x = Math.cos(degreesToRadians(angle)) * power;
-    var y = Math.sin(degreesToRadians(angle)) * power;
+function make_turret_request(direction, power) {
+    var request = new TurretInput();
 
-    var request = new CommandInput();
+    if (direction == 'left')
+    {
+        power *= -1;
+    }
+
+    request.setIntensityPercent(power);
+    return request;
+}
+
+function make_tracks_request(angle_deg, power) {
+    var x = Math.cos(angle_deg) * power;
+    var y = Math.sin(angle_deg) * power;
+
+    var request = new TracksInput();
     request.setLeftTrackIntensityPercent(clamp((y * 100) - (x * 100), -100, 100));
     request.setRightTrackIntensityPercent(clamp((y * 100) + (x * 100), -100, 100));
-
-    console.log(request.getLeftTrackIntensityPercent());
-    console.log(request.getRightTrackIntensityPercent());
 
     return request;
 }
 
-PIXI.Loader.shared
-  .add('outer', require("./images/joystick.png")) // require = get parcel's url
-  .add('inner', require("./images/joystick-handle.png")) // require = get parcel's url
-  .load(initialize);
+var tracks_joystick_options = {
+    zone: document.getElementById('zone_tracks_joystick'),
+    mode: 'static',
+    position: {
+        left: '25%',
+        top: '50%'
+    },
+    color: 'blue',
+    size: document.getElementById('zone_tracks_joystick').offsetWidth / 4
+};
 
-function initialize() {
-  const app = new PIXI.Application({
-    view: document.getElementById('canvas') as HTMLCanvasElement,
-    backgroundColor: 0xffffff,
-    autoDensity: true,
-    resolution: window.devicePixelRatio,
-  });
+var turret_joystick_options = {
+    zone: document.getElementById('zone_turret_joystick'),
+    mode: 'static',
+    position: {
+        right: '25%',
+        top: '50%'
+    },
+    color: 'green',
+    lockX: true,
+    size: document.getElementById('zone_turret_joystick').offsetWidth / 4
+};
 
-  var client = new MasterServiceClient('http://192.168.1.101:8080');
-  const joystick = new Joystick({
-    outer: PIXI.Sprite.from('outer'),
-    inner: PIXI.Sprite.from('inner'),
-    outerScale: { x: 0.5 * 3, y: 0.5 * 3},
-    innerScale: { x: 0.8 * 3, y: 0.8 * 3},
-    onChange: (data) => client.execute_command(make_request(data.angle, data.power), {}, (err, response) => {}),
-    onStart: () => client.execute_command(make_request(0, 0), {}, (err, response) => {}),
-    onEnd: () => client.execute_command(make_request(0, 0), {}, (err, response) => {}),
-  });
-  app.stage.addChild(joystick);
+var turret_joystick = require('nipplejs').create(turret_joystick_options);
+var tracks_joystick = require('nipplejs').create(tracks_joystick_options);
 
-  const resize = () => {
-    joystick.position.set((window.innerWidth / 2), (window.innerHeight / 2));
-    app.renderer.resize(window.innerWidth, window.innerHeight);
-    app.resize();
-  }
-  resize();
-  window.addEventListener('resize', resize);
-  app.start();
-}
+var client = new MasterServiceClient('http://192.168.1.101:8080');
+
+tracks_joystick.on('move', function(evt, data){
+    var request = make_tracks_request(data.angle.degree, Math.min(data.force, 1));
+    client.set_tracks(request, {}, (err, response) => {});
+}).on('start end', function(evt, data){
+    var request = make_tracks_request(0, 0);
+    client.set_tracks(request, {}, (err, response) => {});
+});
+
+turret_joystick.on('move', function(evt, data){
+
+    if (!data.direction)
+    {
+        data.direction = {'x' : '' };
+        return;
+    }
+
+    var request = make_turret_request(data.direction.x, Math.min(data.force, 1));
+    client.set_turret(request, {}, (err, response) => {});
+}).on('start end', function(evt, data){
+    var request = make_turret_request('', 0);
+    client.set_turret(request, {}, (err, response) => {});
+});
+

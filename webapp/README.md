@@ -10,7 +10,3 @@ npm install
 npm start
 ```
 
-## Acknowledgments
-
-[pixi-virtual-joystick](https://github.com/gamestdio/pixi-virtual-joystick)
-
