@@ -26,20 +26,33 @@ namespace
     struct 
     { 
         std::mutex mtx;
-        std::condition_variable driver_thread_cv;
+        std::condition_variable gpio_update_thread_cv;
         double left_track_intensity_percent{};
         double right_track_intensity_percent{};
+        double turret_intensity_percent{};
         bool exit_requested{};
-        bool dirty{};
+        bool turret_dirty{};
+        bool tracks_dirty{};
     } server_state;
-     
-    void update_pins(double left_track_intensity_percent, double right_track_intensity_percent)
+    
+    void update_turret_pins(double turret_intensity_percent)
+    {
+        const double max = 255;
+        const unsigned converted = (std::fabs(turret_intensity_percent) / 100.0f) * max;
+
+        std::cout << "(Turret) Converted: " << converted << ", " << '\n';
+        
+        // TODO
+        // gpioPWM(18, converted);
+    }
+
+    void update_track_pins(double left_track_intensity_percent, double right_track_intensity_percent)
     {
         const double max = 255;
         const unsigned left_converted = (std::fabs(left_track_intensity_percent) / 100.0f) * max;
         const unsigned right_converted = (std::fabs(right_track_intensity_percent) / 100.0f) * max;
 
-        std::cout << "Converted: " << left_converted << ", " << right_converted << '\n';
+        std::cout << "(Tracks) Converted: " << left_converted << ", " << right_converted << '\n';
 
         if (left_track_intensity_percent > 0)
         {
@@ -64,7 +77,7 @@ namespace
         }
     }
 
-    void driver_thread()
+    void gpio_update_loop()
     { 
         gpioSetMode(20, PI_OUTPUT);
         gpioSetMode(21, PI_OUTPUT);
@@ -74,19 +87,27 @@ namespace
         while (true)
         {
             std::unique_lock lck(server_state.mtx);
-            server_state.driver_thread_cv.wait(lck, []{
-                return server_state.dirty || server_state.exit_requested;
+            server_state.gpio_update_thread_cv.wait(lck, []{
+                return server_state.turret_dirty || server_state.tracks_dirty || server_state.exit_requested;
             });
      
             if (server_state.exit_requested)
             {
-                update_pins(0, 0);
+                update_track_pins(0, 0);
                 return;
             }
-     
-            update_pins(server_state.left_track_intensity_percent,
-                        server_state.right_track_intensity_percent);
-            server_state.dirty = false;
+    
+            if (server_state.turret_dirty) 
+            {
+                server_state.turret_dirty = false;
+                update_track_pins(server_state.left_track_intensity_percent, server_state.right_track_intensity_percent);
+            }
+            
+            if (server_state.tracks_dirty)
+            {
+                server_state.tracks_dirty = false;
+                update_turret_pins(server_state.turret_intensity_percent);
+            }
         }
 
         gpioTerminate();
@@ -101,7 +122,7 @@ namespace
             server_state.exit_requested = true;
         }
 
-        server_state.driver_thread_cv.notify_all();
+        server_state.gpio_update_thread_cv.notify_all();
 
         server->Shutdown();
     }
@@ -109,7 +130,23 @@ namespace
 
 class SimpleRpcService final : public MasterService::Service
 {
-  Status execute_command(ServerContext* context, const CommandInput* request, CommandOutput* reply) override
+  Status set_turret(ServerContext* context, const TurretInput* request, TurretOutput* reply) override
+  {
+    std::lock_guard lck(server_state.mtx);
+    
+    {
+        server_state.turret_intensity_percent = request->intensity_percent();
+        server_state.turret_dirty = true;
+    }
+
+    server_state.gpio_update_thread_cv.notify_all();
+
+    std::cout << request->intensity_percent() << "%\n"; 
+
+    return Status::OK;
+  }
+
+  Status set_tracks(ServerContext* context, const TracksInput* request, TracksOutput* reply) override
   {
     
     std::lock_guard lck(server_state.mtx);
@@ -117,10 +154,10 @@ class SimpleRpcService final : public MasterService::Service
     {
         server_state.left_track_intensity_percent = request->left_track_intensity_percent();
         server_state.right_track_intensity_percent = request->right_track_intensity_percent();
-        server_state.dirty = true;
+        server_state.tracks_dirty = true;
     }
 
-    server_state.driver_thread_cv.notify_all();
+    server_state.gpio_update_thread_cv.notify_all();
 
     std::cout << request->left_track_intensity_percent()
               << "% - " 
@@ -143,7 +180,7 @@ int main(int argc, char **argv)
     signal(SIGINT, &signal_handler);
     signal(SIGQUIT, &signal_handler);
 
-    auto dt = std::thread(driver_thread);
+    auto gpio_update_thread = std::thread(gpio_update_loop);
 
     std::string server_address("0.0.0.0:50051");
     SimpleRpcService service;
@@ -153,7 +190,7 @@ int main(int argc, char **argv)
     server = builder.BuildAndStart();
     std::cout << "Server listening on " << server_address << std::endl;
     server->Wait();
-    dt.join();
+    gpio_update_thread.join();
 
     return EXIT_SUCCESS;
 }

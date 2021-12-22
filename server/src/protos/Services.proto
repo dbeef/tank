@@ -1,16 +1,27 @@
 syntax = "proto3";
 
-message CommandInput
+message TracksInput
 {
     // Negative value reverses direction
     double left_track_intensity_percent = 1;
     double right_track_intensity_percent = 2;
 }
 
-message CommandOutput
+message TracksOutput
+{
+}
+
+message TurretInput
+{
+    // Negative value reverses direction
+    double intensity_percent = 1;
+}
+
+message TurretOutput
 {
 }
 
 service MasterService {
-    rpc execute_command (CommandInput) returns (CommandOutput) {}
+    rpc set_tracks (TracksInput) returns (TracksOutput) {}
+    rpc set_turret (TurretInput) returns (TurretOutput) {}
 } 
