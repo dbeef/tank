@@ -22,9 +22,9 @@ function make_turret_request(direction, power) {
     return request;
 }
 
-function make_tracks_request(angle_deg, power) {
-    var x = Math.cos(angle_deg) * power;
-    var y = Math.sin(angle_deg) * power;
+function make_tracks_request(angle_rad, power) {
+    var x = Math.cos(angle_rad) * power;
+    var y = Math.sin(angle_rad) * power;
 
     var request = new TracksInput();
     request.setLeftTrackIntensityPercent(clamp((y * 100) - (x * 100), -100, 100));
@@ -35,38 +35,40 @@ function make_tracks_request(angle_deg, power) {
 
 var tracks_joystick_options = {
     zone: document.getElementById('zone_tracks_joystick'),
-    mode: 'static',
+    mode: 'dynamic',
     position: {
         left: '25%',
         top: '50%'
     },
     color: 'blue',
-    size: document.getElementById('zone_tracks_joystick').offsetWidth / 4
+    size: document.getElementById('zone_tracks_joystick').offsetWidth / 1.5
 };
 
 var turret_joystick_options = {
     zone: document.getElementById('zone_turret_joystick'),
-    mode: 'static',
+    mode: 'dynamic',
     position: {
         right: '25%',
         top: '50%'
     },
     color: 'green',
     lockX: true,
-    size: document.getElementById('zone_turret_joystick').offsetWidth / 4
+    size: document.getElementById('zone_turret_joystick').offsetWidth / 1.5
 };
 
 var turret_joystick = require('nipplejs').create(turret_joystick_options);
 var tracks_joystick = require('nipplejs').create(tracks_joystick_options);
 
-var client = new MasterServiceClient('http://192.168.1.101:8080');
+var client = new MasterServiceClient('http://tank:8080');
 
 tracks_joystick.on('move', function(evt, data){
-    var request = make_tracks_request(data.angle.degree, Math.min(data.force, 1));
+    var request = make_tracks_request(data.angle.radian, Math.min(data.force, 1));
     client.set_tracks(request, {}, (err, response) => {});
-}).on('start end', function(evt, data){
+}).on('end', function(evt, data){
     var request = make_tracks_request(0, 0);
-    client.set_tracks(request, {}, (err, response) => {});
+    // FIXME: Crappy workaround - should use streaming API to guarantee order of messages:
+    // https://github.com/grpc/grpc/issues/10853
+    for (var i = 0; i < 20; i++) client.set_tracks(request, {}, (err, response) => {});
 });
 
 turret_joystick.on('move', function(evt, data){
@@ -77,10 +79,12 @@ turret_joystick.on('move', function(evt, data){
         return;
     }
 
-    var request = make_turret_request(data.direction.x, Math.min(data.force, 1));
+    var request = make_turret_request(data.direction.x, Math.min(data.force * 100, 100));
     client.set_turret(request, {}, (err, response) => {});
-}).on('start end', function(evt, data){
+}).on('end', function(evt, data){
     var request = make_turret_request('', 0);
-    client.set_turret(request, {}, (err, response) => {});
+    // FIXME: Crappy workaround - should use streaming API to guarantee order of messages:
+    // https://github.com/grpc/grpc/issues/10853
+    for (var i = 0; i < 20; i++) client.set_turret(request, {}, (err, response) => {});
 });
 

@@ -37,13 +37,45 @@ namespace
     
     void update_turret_pins(double turret_intensity_percent)
     {
-        const double max = 255;
-        const unsigned converted = (std::fabs(turret_intensity_percent) / 100.0f) * max;
+        const double activation_treshold = 0.1f;
+
+        const double max = 8.85;
+        double converted = (std::fabs(turret_intensity_percent + activation_treshold) / 100.0f) * max;
+        converted = std::clamp<double>(converted, 0, 100);
 
         std::cout << "(Turret) Converted: " << converted << ", " << '\n';
-        
-        // TODO
-        // gpioPWM(18, converted);
+
+        double out = 19.125;
+
+        if (turret_intensity_percent > 0)
+        {
+            out -= converted;
+        }
+        else
+        {
+            out += converted;
+        }
+
+        if (out > 255)
+        {
+            out = 255;
+        }
+        if (out < 0)
+        {
+            out = 0;
+        }
+
+        const auto cast = static_cast<unsigned>(out);
+        std::cout << "Cast: " << cast << '\n';
+
+        gpioPWM(19, static_cast<unsigned>(cast));
+        // i += 0.1f;
+        // if (i >= 255)
+        // {
+            // i = 0;
+        // }
+        // gpioPWM(19, static_cast<unsigned>(i));
+        // std::cout << i << '\n'; 
     }
 
     void update_track_pins(double left_track_intensity_percent, double right_track_intensity_percent)
@@ -83,7 +115,9 @@ namespace
         gpioSetMode(21, PI_OUTPUT);
         gpioSetMode(17, PI_OUTPUT);
         gpioSetMode(18, PI_OUTPUT);
-    
+        gpioSetMode(19, PI_OUTPUT);
+        gpioSetPWMfrequency(19, 50);
+
         while (true)
         {
             std::unique_lock lck(server_state.mtx);
@@ -100,13 +134,13 @@ namespace
             if (server_state.turret_dirty) 
             {
                 server_state.turret_dirty = false;
-                update_track_pins(server_state.left_track_intensity_percent, server_state.right_track_intensity_percent);
+                update_turret_pins(server_state.turret_intensity_percent);
             }
             
             if (server_state.tracks_dirty)
             {
                 server_state.tracks_dirty = false;
-                update_turret_pins(server_state.turret_intensity_percent);
+                update_track_pins(server_state.left_track_intensity_percent, server_state.right_track_intensity_percent);
             }
         }
 

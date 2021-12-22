@@ -1,5 +1,5 @@
 #!/bin/sh -e
 
 cd $PWD/webapp/dist/
-python3 -m http.server 2>&1 > /tmp/webapp-logs.txt
+sudo python3 -m http.server 80 2>&1 > /tmp/webapp-logs.txt
 

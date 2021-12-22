@@ -3,11 +3,31 @@
 <head>
   <title>Tank controls</title>
   <style type="text/css">
-    body, html, canvas { margin: 0; padding: 0; }
+    body, html { 
+        margin: 0;
+        padding: 0;
+        height: 100%;
+    }
+
+    .column {
+      float: left;
+      width: 50%;
+      height: 100%;
+      position: relative;
+    }
+
+    .row {
+      width: 100%;
+      height: 100%;
+    }
+
   </style>
 </head>
 <body>
-  <div id="zone_tracks_joystick"></div>
-  <div id="zone_turret_joystick"></div>
-  <script src="app.ts"></script> </body>
+    <div class="row">
+      <div class="column" id="zone_tracks_joystick" style="background-color:lightblue"> </div>
+      <div class="column" id="zone_turret_joystick" style="background-color:lightgreen"> </div>
+    </div>
+</body>
+    <script src="app.ts"></script>
 </html>
